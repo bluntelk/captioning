@@ -2,6 +2,7 @@
 
 namespace Captioning\Format;
 
+use Captioning\Cue;
 use Captioning\File;
 use Captioning\FileInterface;
 
@@ -19,6 +20,13 @@ class TtmlFile extends File
 
     private $regions = [];
 
+    private $defaultLang = 'en';
+
+    private $title = '';
+    private $copyRight = '';
+
+    private $languages = [];
+
     /**
      * @param string $_timeBase
      * @return TtmlFile
@@ -28,7 +36,7 @@ class TtmlFile extends File
         $matchingTable = [
             'media' => self::TIMEBASE_MEDIA,
             'smpte' => self::TIMEBASE_SMPTE,
-            'clock' => self::TIMEBASE_CLOCK
+            'clock' => self::TIMEBASE_CLOCK,
         ];
 
         if (isset($matchingTable[$_timeBase])) {
@@ -102,6 +110,33 @@ class TtmlFile extends File
         return $this;
     }
 
+    protected function getNewTtmlDocument(): \SimpleXMLElement
+    {
+        $baseXml = <<< EOFTT
+<?xml version="1.0" encoding="UTF-8"?>
+<tt xml:lang="{$this->defaultLang}" xmlns="http://www.w3.org/ns/ttml">
+    <head>
+    <metadata xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+      <ttm:title>{$this->title}</ttm:title>
+      <ttm:copyright>{$this->copyRight}</ttm:copyright>
+</metadata>
+</head>
+<body>
+
+</body>    
+</tt>
+EOFTT;
+        $tt = simplexml_load_string($baseXml);
+        if (!$this->copyRight) {
+            $tt->head->metadata->children('ttm', true)->copyright = "Copyright " . date('Y');
+        }
+        // TODO: Add Regions
+
+        // TODO: Add Styling
+
+        return $tt;
+    }
+
     /**
      * @param int $_from
      * @param int $_to
@@ -109,8 +144,50 @@ class TtmlFile extends File
      */
     public function buildPart(int $_from, int $_to): FileInterface
     {
-        // TODO: Implement buildPart() method.
+        $tt = $this->getNewTtmlDocument();
+        $this->sortCues();
+        if ($_from < 0 || $_from >= $this->getCuesCount()) {
+            $_from = 0;
+        }
+
+        if ($_to < 0 || $_to >= $this->getCuesCount()) {
+            $_to = $this->getCuesCount() - 1;
+        }
+
+        $langDivs = [];
+
+        foreach ($this->languages as $language) {
+            $div = $tt->body->addChild('div');
+            $div->addAttribute('xml:lang', $language, 'xml');
+            $langDivs[strtolower($language)] = $div;
+            $div->addChild('p');
+        }
+
+        for ($j = $_from; $j <= $_to; $j++) {
+            $cue = $this->getCue($j);
+            if ($cue instanceof TtmlCue) {
+                $lang = $cue->getLang() ?? $this->defaultLang;
+            } else {
+                $lang = $this->defaultLang;
+            }
+
+            if ($div = $langDivs[strtolower($lang)] ?? null) {
+                $p = $div->addChild('p', $cue->getText());
+                $p->addAttribute('begin', $this->cueTime($cue->getStartMS(), $cue->getStart()));
+                $p->addAttribute('end', $this->cueTime($cue->getStopMS(), $cue->getStop()));
+            }
+        }
+
+        $doc = new \DOMDocument();
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput = true;
+        $doc->loadXML($tt->asXML());
+        $this->fileContent = $doc->saveXML();
         return $this;
+    }
+
+    private function cueTime($timeMs, $time): string {
+        return sprintf("%0.4fs", $timeMs ?? $time / 1000.0);
     }
 
     /**
@@ -207,5 +284,101 @@ class TtmlFile extends File
 
             $this->addCue($cue);
         }
+    }
+
+    /**
+     * @return string
+     */
+    public function getDefaultLang(): string
+    {
+        return $this->defaultLang;
+    }
+
+    /**
+     * @param string $defaultLang
+     *
+     * @return $this
+     */
+    public function setDefaultLang(string $defaultLang)
+    {
+        $this->defaultLang = $defaultLang;
+
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getTitle(): string
+    {
+        return $this->title;
+    }
+
+    /**
+     * @param string $title
+     *
+     * @return $this
+     */
+    public function setTitle(string $title)
+    {
+        $this->title = $title;
+
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getCopyRight(): string
+    {
+        return $this->copyRight;
+    }
+
+    /**
+     * @param string $copyRight
+     *
+     * @return $this
+     */
+    public function setCopyRight(string $copyRight)
+    {
+        $this->copyRight = $copyRight;
+
+        return $this;
+    }
+
+    public function addCues(File $file, string $iso6391LanguageCode)
+    {
+        $this->languages[] = $iso6391LanguageCode;
+        foreach ($file->getCues() as $cue) {
+            if ($cue instanceof Cue) {
+                $begin = $cue->getStartMS() ?? $cue->getStart();
+                $end = $cue->getStopMS() ?? $cue->getStop();
+                $ttmlCue = new TtmlCue($begin, $end, $cue->getText());
+                $ttmlCue->setLang($iso6391LanguageCode);
+                $this->addCue($ttmlCue);
+            }
+        }
+    }
+
+    /**
+     * Gets a clone of this TtmlFile with only the cues in a given language
+     * @param string|null $iso6391LanguageCode
+     *
+     * @return TtmlFile
+     */
+    public function getLanguageCuesAsFile(string $iso6391LanguageCode = null): TtmlFile
+    {
+        $ret = clone($this);
+        $langCues = [];
+        /** @var TtmlCue $cue */
+        foreach ($this->getCues() as $cue) {
+            if ($cue instanceof TtmlCue) {
+                if ($cue->getLang() == $iso6391LanguageCode) {
+                    $langCues[] = $cue;
+                }
+            }
+        }
+        $ret->cues = $langCues;
+        return $ret;
     }
 }

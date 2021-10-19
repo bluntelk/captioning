@@ -12,6 +12,9 @@ class TtmlCue extends Cue
 
     private $region;
 
+    /** @var null|string ISO 639.1 2 letter language code */
+    private $lang = null;
+
     /**
      * Converts timecode format into milliseconds
      *
@@ -68,5 +71,25 @@ class TtmlCue extends Cue
     public function getRegion()
     {
         return $this->region;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getLang()
+    {
+        return $this->lang;
+    }
+
+    /**
+     * @param string|null $lang
+     *
+     * @return $this
+     */
+    public function setLang(string $lang)
+    {
+        $this->lang = $lang;
+
+        return $this;
     }
 }
