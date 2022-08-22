@@ -172,7 +172,7 @@ EOFTT;
             }
 
             if ($div = $langDivs[strtolower($lang)] ?? null) {
-                $p = $div->addChild('p', $cue->getText());
+                $p = $div->addChild('p', htmlspecialchars($cue->getText()));
                 $p->addAttribute('begin', $this->cueTime($cue->getStartMS(), $cue->getStart()));
                 $p->addAttribute('end', $this->cueTime($cue->getStopMS(), $cue->getStop()));
             }
