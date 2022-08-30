@@ -113,15 +113,18 @@ class TtmlFile extends File
     protected function getNewTtmlDocument(): \SimpleXMLElement
     {
         $baseXml = <<< EOFTT
-<?xml version="1.0" encoding="UTF-8"?>
-<tt xml:lang="{$this->defaultLang}" xmlns="http://www.w3.org/ns/ttml">
+<?xml version="1.0" encoding="utf-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttp="http://www.w3.org/ns/ttml#parameter" ttp:timeBase="media" xmlns:tts="http://www.w3.org/ns/ttml#style" xml:lang="{$this->defaultLang}" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
 <head>
-    <metadata xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+    <metadata>
       <ttm:title>{$this->title}</ttm:title>
       <ttm:copyright>{$this->copyRight}</ttm:copyright>
     </metadata>
+    <styling>
+      <style id="s0" tts:backgroundColor="black" tts:fontStyle="normal" tts:fontSize="16" tts:fontFamily="sansSerif" tts:color="white" />
+    </styling>
 </head>
-<body>
+<body style="s0">
 
 </body>    
 </tt>
@@ -160,7 +163,10 @@ EOFTT;
             $div = $tt->body->addChild('div');
             $div->addAttribute('xml:lang', $language, 'xml');
             $langDivs[strtolower($language)] = $div;
-            $div->addChild('p');
+            $p=$div->addChild('p', $this->title);
+            $p->addAttribute('begin', '0.000s');
+            $p->addAttribute('id', "{$language}");
+            $p->addAttribute('end', '1.000s');
         }
 
         for ($j = $_from; $j <= $_to; $j++) {
@@ -173,8 +179,10 @@ EOFTT;
 
             if ($div = $langDivs[strtolower($lang)] ?? null) {
                 $p = $div->addChild('p', htmlspecialchars($cue->getText()));
-                $p->addAttribute('begin', $this->cueTime($cue->getStartMS(), $cue->getStart()));
-                $p->addAttribute('end', $this->cueTime($cue->getStopMS(), $cue->getStop()));
+                $p[0] = preg_replace('/[\r\n]+/',' ', $p[0]);
+                $p->addAttribute('begin', $cue->getStart());
+                $p->addAttribute('id', "{$lang}{$j}");
+                $p->addAttribute('end', $cue->getStop());
             }
         }
 
@@ -184,10 +192,6 @@ EOFTT;
         $doc->loadXML($tt->asXML());
         $this->fileContent = $doc->saveXML();
         return $this;
-    }
-
-    private function cueTime($timeMs, $time): string {
-        return sprintf("%0.3fs", $timeMs ?? $time / 1000.0);
     }
 
     /**
@@ -351,10 +355,15 @@ EOFTT;
         $this->languages[] = $iso6391LanguageCode;
         foreach ($file->getCues() as $cue) {
             if ($cue instanceof Cue) {
-                $begin = $cue->getStartMS() ?? $cue->getStart();
-                $end = $cue->getStopMS() ?? $cue->getStop();
-                $ttmlCue = new TtmlCue($begin, $end, $cue->getText());
+                $beginTc = TtmlCue::ms2tc($cue->getStartMS());
+                $endTc = TtmlCue::ms2tc($cue->getStopMS());
+                $ttmlCue = new TtmlCue($beginTc, $endTc, $cue->getText());
                 $ttmlCue->setLang($iso6391LanguageCode);
+                if ($cue instanceof TtmlCue) {
+                    $ttmlCue
+                        ->setRegion($cue->getRegion())
+                        ->setStyle($cue->getStyle());
+                }
                 $this->addCue($ttmlCue);
             }
         }

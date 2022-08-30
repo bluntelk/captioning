@@ -23,7 +23,12 @@ class TtmlCue extends Cue
      */
     public static function tc2ms(string $_timecode): int
     {
-        return 0;
+        // ttml format: 12.345s
+        if (preg_match("/^([\d+.]+)s$/", $_timecode, $matches)) {
+            return intval($matches[1] * 1000);
+        }
+
+        return SubripCue::tc2ms($_timecode);
     }
 
     /**
@@ -34,7 +39,7 @@ class TtmlCue extends Cue
      */
     public static function ms2tc(int $_ms, string $_separator = ',', $isHoursPaddingEnabled = true): string
     {
-        return '';
+        return sprintf("%0.3fs", $_ms / 1000);
     }
 
     public function setStyle($_style): TtmlCue
