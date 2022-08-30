@@ -115,11 +115,11 @@ class TtmlFile extends File
         $baseXml = <<< EOFTT
 <?xml version="1.0" encoding="UTF-8"?>
 <tt xml:lang="{$this->defaultLang}" xmlns="http://www.w3.org/ns/ttml">
-    <head>
+<head>
     <metadata xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
       <ttm:title>{$this->title}</ttm:title>
       <ttm:copyright>{$this->copyRight}</ttm:copyright>
-</metadata>
+    </metadata>
 </head>
 <body>
 
@@ -187,7 +187,7 @@ EOFTT;
     }
 
     private function cueTime($timeMs, $time): string {
-        return sprintf("%0.4fs", $timeMs ?? $time / 1000.0);
+        return sprintf("%0.3fs", $timeMs ?? $time / 1000.0);
     }
 
     /**
