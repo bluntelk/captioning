@@ -12,6 +12,8 @@ class TtmlFile extends File
     const TIMEBASE_SMPTE = 1;
     const TIMEBASE_CLOCK = 2;
 
+    const VALID_TIMEBASE = [self::TIMEBASE_MEDIA, self::TIMEBASE_SMPTE, self::TIMEBASE_CLOCK];
+
     private $timeBase;
 
     private $tickRate;
@@ -43,8 +45,10 @@ class TtmlFile extends File
             $_timeBase = $matchingTable[$_timeBase];
         }
 
-        if (!in_array($_timeBase, [self::TIMEBASE_MEDIA, self::TIMEBASE_SMPTE, self::TIMEBASE_CLOCK], true)) {
-            throw new \InvalidArgumentException;
+        if (!in_array($_timeBase, self::VALID_TIMEBASE, true)) {
+            throw new \InvalidArgumentException(
+                "Invalid timebase (given:'{$_timeBase}') given. Hint: <tt xmlns:ttp=\"http://www.w3.org/ns/ttml#parameter\" ttp:timeBase=\"media\">'"
+            );
         }
 
         $this->timeBase = $_timeBase;
@@ -126,7 +130,7 @@ class TtmlFile extends File
 </head>
 <body style="s0">
 
-</body>    
+</body>
 </tt>
 EOFTT;
         $tt = simplexml_load_string($baseXml);
@@ -196,7 +200,9 @@ EOFTT;
 
     /**
      * @param TtmlCue $_mixed
+     *
      * @return TtmlFile
+     * @throws \Exception
      */
     public function addCue($_mixed, $_start = null, $_stop = null): File
     {
